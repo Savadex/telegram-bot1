@@ -9,11 +9,6 @@ SIGHTENGINE_USER = os.environ["SIGHTENGINE_USER"]
 SIGHTENGINE_SECRET = os.environ["SIGHTENGINE_SECRET"]
 LOG_CHAT_ID = os.getenv("LOG_CHAT_ID")
 
-NSFW_WORDS = [
-    "porn", "porno", "nsfw", "sex", "seks", "nude", "çıplak",
-    "onlyfans", "18+", "sikiş", "am", "göt", "yarrak"
-]
-
 WARN_LIMIT = 3
 user_warns = {}
 
@@ -53,7 +48,7 @@ async def warn_user(update: Update, context: ContextTypes.DEFAULT_TYPE, reason):
 
     if warns >= WARN_LIMIT:
         try:
-            until_date = update.message.date + timedelta(minutes=30)
+            until_date = update.message.date + timedelta(minutes=5)
 
             await context.bot.restrict_chat_member(
                 chat_id=chat.id,
@@ -63,7 +58,9 @@ async def warn_user(update: Update, context: ContextTypes.DEFAULT_TYPE, reason):
             )
 
             user_warns[key] = 0
-            await context.bot.send_message(chat_id=chat.id, text=f"🔇 {user.first_name} 30 dakika susturuldu.")
+            await context.bot.send_message(chat_id=chat.id, text=f"🔇 {user.first_name} 5 dakika susturuldu.")
+            await send_log(context, f"🔇 {user.first_name} 5 dakika susturuldu.")
+
         except Exception as e:
             await context.bot.send_message(chat_id=chat.id, text=f"Yetkim yok: {e}")
 
@@ -125,22 +122,6 @@ async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     msg = update.message
-    text = ""
-
-    if msg.text:
-        text += msg.text.lower()
-
-    if msg.caption:
-        text += " " + msg.caption.lower()
-
-    for word in NSFW_WORDS:
-        if word in text:
-            try:
-                await msg.delete()
-                await warn_user(update, context, "NSFW kelime")
-            except Exception as e:
-                print(e)
-            return
 
     # Fotoğraf kontrolü
     if msg.photo:
@@ -152,17 +133,17 @@ async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await check_file(update, context, msg.document.file_id, "NSFW görsel dosya")
         return
 
-    # Sticker kontrolü: normal sticker silinmez, sadece +18 algılanırsa silinir
+    # Sticker kontrolü
     if msg.sticker and msg.sticker.thumbnail:
         await check_file(update, context, msg.sticker.thumbnail.file_id, "NSFW sticker")
         return
 
-    # GIF kontrolü: normal GIF silinmez, sadece +18 algılanırsa silinir
+    # GIF kontrolü
     if msg.animation and msg.animation.thumbnail:
         await check_file(update, context, msg.animation.thumbnail.file_id, "NSFW GIF")
         return
 
-    # Video kontrolü: normal video silinmez, sadece +18 algılanırsa silinir
+    # Video kontrolü
     if msg.video and msg.video.thumbnail:
         await check_file(update, context, msg.video.thumbnail.file_id, "NSFW video")
         return
@@ -188,7 +169,7 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     user = update.message.reply_to_message.from_user
-    until_date = update.message.date + timedelta(minutes=30)
+    until_date = update.message.date + timedelta(minutes=5)
 
     try:
         await context.bot.restrict_chat_member(
@@ -198,7 +179,8 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
             until_date=until_date
         )
 
-        await update.message.reply_text(f"🔇 {user.first_name} 30 dakika susturuldu.")
+        await update.message.reply_text(f"🔇 {user.first_name} 5 dakika susturuldu.")
+        await send_log(context, f"🔇 {user.first_name} manuel olarak 5 dakika susturuldu.")
 
     except Exception as e:
         await update.message.reply_text(f"Hata: {e}")
