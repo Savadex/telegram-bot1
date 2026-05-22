@@ -30,7 +30,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("NSFW koruma botu aktif ✅")
 
 
-async def warn_user(update: Update, context: ContextTypes.DEFAULT_TYPE, reason="Uygunsuz içerik"):
+async def warn_user(update: Update, context: ContextTypes.DEFAULT_TYPE, reason):
     user = update.effective_user
     chat = update.effective_chat
 
@@ -48,12 +48,7 @@ async def warn_user(update: Update, context: ContextTypes.DEFAULT_TYPE, reason="
 
     await send_log(
         context,
-        f"🧾 LOG\n"
-        f"Kullanıcı: {user.first_name}\n"
-        f"ID: {user.id}\n"
-        f"Grup: {chat.title}\n"
-        f"Sebep: {reason}\n"
-        f"Uyarı: {warns}/{WARN_LIMIT}"
+        f"🧾 LOG\nKullanıcı: {user.first_name}\nID: {user.id}\nGrup: {chat.title}\nSebep: {reason}\nUyarı: {warns}/{WARN_LIMIT}"
     )
 
     if warns >= WARN_LIMIT:
@@ -68,14 +63,7 @@ async def warn_user(update: Update, context: ContextTypes.DEFAULT_TYPE, reason="
             )
 
             user_warns[key] = 0
-
-            await context.bot.send_message(
-                chat_id=chat.id,
-                text=f"🔇 {user.first_name} 30 dakika susturuldu."
-            )
-
-            await send_log(context, f"🔇 {user.first_name} 30 dakika susturuldu.")
-
+            await context.bot.send_message(chat_id=chat.id, text=f"🔇 {user.first_name} 30 dakika susturuldu.")
         except Exception as e:
             await context.bot.send_message(chat_id=chat.id, text=f"Yetkim yok: {e}")
 
@@ -103,7 +91,33 @@ async def sightengine_check(file_path):
     sexual_display = nudity.get("sexual_display", 0)
     erotica = nudity.get("erotica", 0)
 
-    return sexual > 0.55 or sexual_display > 0.55 or erotica > 0.65
+    return sexual > 0.50 or sexual_display > 0.50 or erotica > 0.60
+
+
+async def check_file(update, context, file_id, reason):
+    msg = update.message
+
+    try:
+        tg_file = await context.bot.get_file(file_id)
+        file_path = f"temp_{msg.message_id}.jpg"
+
+        await tg_file.download_to_drive(file_path)
+
+        is_nsfw = await sightengine_check(file_path)
+
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        if is_nsfw:
+            await msg.delete()
+            await warn_user(update, context, reason)
+            return True
+
+    except Exception as e:
+        print("Kontrol hatası:", e)
+        await send_log(context, f"❌ Kontrol hatası: {e}")
+
+    return False
 
 
 async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -126,37 +140,32 @@ async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await warn_user(update, context, "NSFW kelime")
             except Exception as e:
                 print(e)
-                await send_log(context, f"❌ Mesaj silinemedi: {e}")
             return
 
-    file_id = None
-
+    # Fotoğraf kontrolü
     if msg.photo:
-        file_id = msg.photo[-1].file_id
+        await check_file(update, context, msg.photo[-1].file_id, "NSFW fotoğraf")
+        return
 
-    elif msg.document and msg.document.mime_type and msg.document.mime_type.startswith("image/"):
-        file_id = msg.document.file_id
+    # Resim dosyası kontrolü
+    if msg.document and msg.document.mime_type and msg.document.mime_type.startswith("image/"):
+        await check_file(update, context, msg.document.file_id, "NSFW görsel dosya")
+        return
 
-    if file_id:
-        try:
-            tg_file = await context.bot.get_file(file_id)
-            file_path = f"temp_{msg.message_id}.jpg"
+    # Sticker kontrolü: normal sticker silinmez, sadece +18 algılanırsa silinir
+    if msg.sticker and msg.sticker.thumbnail:
+        await check_file(update, context, msg.sticker.thumbnail.file_id, "NSFW sticker")
+        return
 
-            await tg_file.download_to_drive(file_path)
+    # GIF kontrolü: normal GIF silinmez, sadece +18 algılanırsa silinir
+    if msg.animation and msg.animation.thumbnail:
+        await check_file(update, context, msg.animation.thumbnail.file_id, "NSFW GIF")
+        return
 
-            is_nsfw = await sightengine_check(file_path)
-
-            if os.path.exists(file_path):
-                os.remove(file_path)
-
-            if is_nsfw:
-                await msg.delete()
-                await warn_user(update, context, "NSFW görsel")
-                return
-
-        except Exception as e:
-            print("Sightengine hata:", e)
-            await send_log(context, f"❌ Sightengine hata: {e}")
+    # Video kontrolü: normal video silinmez, sadece +18 algılanırsa silinir
+    if msg.video and msg.video.thumbnail:
+        await check_file(update, context, msg.video.thumbnail.file_id, "NSFW video")
+        return
 
 
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -169,7 +178,6 @@ async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.ban_chat_member(update.effective_chat.id, user.id)
         await update.message.reply_text(f"⛔ {user.first_name} banlandı.")
-        await send_log(context, f"⛔ {user.first_name} banlandı.")
     except Exception as e:
         await update.message.reply_text(f"Hata: {e}")
 
@@ -191,7 +199,6 @@ async def mute(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await update.message.reply_text(f"🔇 {user.first_name} 30 dakika susturuldu.")
-        await send_log(context, f"🔇 {user.first_name} manuel olarak susturuldu.")
 
     except Exception as e:
         await update.message.reply_text(f"Hata: {e}")
@@ -218,5 +225,5 @@ app.add_handler(CommandHandler("warns", warns))
 
 app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, check_message))
 
-print("Sightengine NSFW loglu bot çalışıyor...")
+print("NSFW algılamalı bot çalışıyor...")
 app.run_polling()
