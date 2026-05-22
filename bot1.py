@@ -5,9 +5,9 @@ from telegram import Update, ChatPermissions
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, ContextTypes, filters
 
 TOKEN = os.environ["BOT_TOKEN"]
-SIGHTENGINE_USER = os.environ["409272525"]
-SIGHTENGINE_SECRET = os.environ["D9UK8JyVBn9HGuD9bcW3mUVVrkMmMqoC"]
-LOG_CHAT_ID = os.getenv("-1003494221100")
+SIGHTENGINE_USER = os.environ["SIGHTENGINE_USER"]
+SIGHTENGINE_SECRET = os.environ["SIGHTENGINE_SECRET"]
+LOG_CHAT_ID = os.getenv("LOG_CHAT_ID")
 
 NSFW_WORDS = [
     "porn", "porno", "nsfw", "sex", "seks", "nude", "çıplak",
@@ -221,5 +221,5 @@ app.add_handler(CommandHandler("warns", warns))
 
 app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, check_message))
 
-print("merhaba nsfw botumuz çalısıyor")
+print("Sightengine NSFW loglu bot çalışıyor...")
 app.run_polling()
