@@ -22,7 +22,7 @@ async def send_log(context, text):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("NSFW koruma botu aktif ✅")
+    await update.message.reply_text("botumuz aktiftir.")
 
 
 async def warn_user(update: Update, context: ContextTypes.DEFAULT_TYPE, reason):
@@ -78,26 +78,31 @@ async def sightengine_check(file_path):
             "https://api.sightengine.com/1.0/check.json",
             files=files,
             data=params,
-            timeout=20
+            timeout=30
         )
 
     data = r.json()
-    nudity = data.get("nudity", {})
 
+    nudity = data.get("nudity", {})
     sexual = nudity.get("sexual_activity", 0)
     sexual_display = nudity.get("sexual_display", 0)
     erotica = nudity.get("erotica", 0)
+    very_suggestive = nudity.get("very_suggestive", 0)
 
-    return sexual > 0.50 or sexual_display > 0.50 or erotica > 0.60
+    return (
+        sexual > 0.45 or
+        sexual_display > 0.45 or
+        erotica > 0.55 or
+        very_suggestive > 0.65
+    )
 
 
 async def check_file(update, context, file_id, reason):
     msg = update.message
+    file_path = f"temp_{msg.message_id}"
 
     try:
         tg_file = await context.bot.get_file(file_id)
-        file_path = f"temp_{msg.message_id}.jpg"
-
         await tg_file.download_to_drive(file_path)
 
         is_nsfw = await sightengine_check(file_path)
@@ -113,6 +118,9 @@ async def check_file(update, context, file_id, reason):
     except Exception as e:
         print("Kontrol hatası:", e)
         await send_log(context, f"❌ Kontrol hatası: {e}")
+
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
     return False
 
@@ -133,19 +141,19 @@ async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await check_file(update, context, msg.document.file_id, "NSFW görsel dosya")
         return
 
-    # Sticker kontrolü
+    # Sticker kontrolü: normal sticker silinmez, sadece NSFW algılanırsa silinir
     if msg.sticker and msg.sticker.thumbnail:
         await check_file(update, context, msg.sticker.thumbnail.file_id, "NSFW sticker")
         return
 
-    # GIF kontrolü
-    if msg.animation and msg.animation.thumbnail:
-        await check_file(update, context, msg.animation.thumbnail.file_id, "NSFW GIF")
+    # GIF kontrolü: tam GIF dosyası kontrol edilir
+    if msg.animation:
+        await check_file(update, context, msg.animation.file_id, "NSFW GIF")
         return
 
-    # Video kontrolü
-    if msg.video and msg.video.thumbnail:
-        await check_file(update, context, msg.video.thumbnail.file_id, "NSFW video")
+    # Video kontrolü: tam video dosyası kontrol edilir
+    if msg.video:
+        await check_file(update, context, msg.video.file_id, "NSFW video")
         return
 
 
@@ -207,5 +215,5 @@ app.add_handler(CommandHandler("warns", warns))
 
 app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, check_message))
 
-print("NSFW algılamalı bot çalışıyor...")
+print("NSFW GIF/Video algılamalı bot çalışıyor...")
 app.run_polling()
