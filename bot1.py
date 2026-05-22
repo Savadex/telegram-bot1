@@ -121,8 +121,12 @@ async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     for word in NSFW_WORDS:
         if word in text:
-            await msg.delete()
-            await warn_user(update, context, "NSFW kelime")
+            try:
+                await msg.delete()
+                await warn_user(update, context, "NSFW kelime")
+            except Exception as e:
+                print(e)
+                await send_log(context, f"❌ Mesaj silinemedi: {e}")
             return
 
     file_id = None
@@ -153,13 +157,6 @@ async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             print("Sightengine hata:", e)
             await send_log(context, f"❌ Sightengine hata: {e}")
-
-    if msg.video or msg.animation or msg.sticker:
-        try:
-            await msg.delete()
-            await warn_user(update, context, "Video/GIF/Sticker engellendi")
-        except Exception as e:
-            print(e)
 
 
 async def ban(update: Update, context: ContextTypes.DEFAULT_TYPE):
